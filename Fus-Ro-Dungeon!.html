@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full bg-slate-950 text-slate-100 select-none">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Fus-Ro-Dungeon! - O Mestre do Thu'um</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Google Fonts: Cinzel (Nórdica) e Press Start 2P (Arcade Retrô) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Press+Start+2P&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            cinzel: ['Cinzel', 'serif'],
+            arcade: ['"Press Start 2P"', 'monospace']
+          },
+          colors: {
+            nordic: {
+              rune: '#00f0ff',
+              ice: '#a5f3fc',
+              gold: '#fbbf24',
+              blood: '#ef4444',
+              stone: '#1e293b'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* CSS Custom para efeitos de iluminação e animações */
+    canvas {
+      image-rendering: pixelated;
+      touch-action: none;
+    }
+
+    .rune-glow {
+      text-shadow: 0 0 10px #00f0ff, 0 0 20px #00f0ff;
+    }
+
+    .gold-glow {
+      text-shadow: 0 0 8px #fbbf24;
+    }
+
+    /* Scrollbar estilizada */
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #0284c7;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col justify-between overflow-hidden font-arcade bg-slate-950 text-xs sm:text-sm">
+
+  <!-- ====================================================================
+       CABEÇALHO / BARRA DE STATUS
+       ==================================================================== -->
+  <header class="w-full max-w-4xl mx-auto p-2 sm:p-4 flex justify-between items-center bg-slate-900/80 border-b-2 border-cyan-500/30 backdrop-blur">
+    <!-- Vida do Jogador -->
+    <div class="flex items-center gap-2">
+      <span class="text-red-500 text-base sm:text-xl animate-pulse">❤️</span>
+      <div class="w-24 sm:w-40 bg-slate-800 h-4 rounded-full overflow-hidden border border-slate-700">
+        <div id="hp-bar" class="bg-gradient-to-r from-red-600 to-red-400 h-full w-full transition-all duration-200"></div>
+      </div>
+      <span id="hp-text" class="text-[10px] sm:text-xs text-slate-300">100/100</span>
+    </div>
+
+    <!-- Placar e Ouro -->
+    <div class="flex gap-4 sm:gap-6 items-center">
+      <div class="flex items-center gap-1 text-amber-400 gold-glow">
+        <span>🪙</span>
+        <span id="gold-display" class="font-bold">0</span>
+      </div>
+      <div class="text-cyan-300 rune-glow">
+        <span>PONTOS:</span>
+        <span id="score-display" class="font-bold">0</span>
+      </div>
+    </div>
+  </header>
+
+  <!-- ====================================================================
+       ÁREA PRINCIPAL DO JOGO (CANVAS + OVERLAYS)
+       ==================================================================== -->
+  <main class="relative flex-1 flex items-center justify-center w-full max-w-4xl mx-auto p-2 overflow-hidden">
+    <!-- Container do Canvas Responsivo -->
+    <div id="canvas-container" class="relative w-full aspect-[16/9] max-h-[80vh] border-2 border-cyan-500/40 rounded-lg overflow-hidden shadow-[0_0_30px_rgba(0,240,255,0.15)] bg-slate-900">
+      <canvas id="gameCanvas" class="w-full h-full block"></canvas>
+
+      <!-- Overlay do Menu Principal -->
+      <div id="main-menu" class="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center p-4 text-center z-20">
+        <h1 class="font-cinzel text-2xl sm:text-5xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-blue-200 to-cyan-500 rune-glow mb-2">
+          FUS-RO-DUNGEON!
+        </h1>
+        <p class="font-cinzel text-slate-400 text-xs sm:text-base mb-6">O Mestre do Thu'um nas Catacumbas</p>
+
+        <div class="flex flex-col sm:flex-row gap-4 w-full max-w-xs sm:max-w-md">
+          <button id="btn-start" class="flex-1 bg-cyan-600 hover:bg-cyan-500 border-2 border-cyan-300 py-3 rounded text-white font-bold tracking-wider shadow-[0_0_15px_rgba(0,240,255,0.4)] active:scale-95 transition">
+            ▶ JOGAR
+          </button>
+          <button id="btn-shop" class="flex-1 bg-amber-600 hover:bg-amber-500 border-2 border-amber-300 py-3 rounded text-white font-bold tracking-wider shadow-[0_0_15px_rgba(251,191,36,0.4)] active:scale-95 transition">
+            🏛️ LOJA DE RUNAS
+          </button>
+        </div>
+
+        <div class="mt-6 text-slate-400 text-[10px] sm:text-xs space-y-1">
+          <p>👑 RECORDE: <span id="high-score-display" class="text-cyan-300">0</span></p>
+          <p class="text-slate-500 hidden sm:block">Controles: Setas / W-S (Mudar Pista) | Espaço (Atacar) | Enter (Grito) | Q (Lentidão)</p>
+        </div>
+      </div>
+
+      <!-- Overlay de Game Over -->
+      <div id="game-over-menu" class="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-4 text-center z-20 hidden">
+        <h2 class="font-cinzel text-3xl sm:text-5xl text-red-500 font-bold mb-2">SUA ALMA CAIU!</h2>
+        <p class="text-slate-400 mb-4">Os Draugrs dominaram a tumba...</p>
+
+        <div class="bg-slate-900 border border-slate-700 p-4 rounded-lg mb-6 w-full max-w-xs text-left space-y-2">
+          <div class="flex justify-between">
+            <span class="text-slate-400">Pontuação Final:</span>
+            <span id="final-score" class="text-cyan-300 font-bold">0</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-400">Ouro Coletado:</span>
+            <span id="final-gold" class="text-amber-400 font-bold">+0</span>
+          </div>
+        </div>
+
+        <div class="flex gap-4 w-full max-w-xs">
+          <button id="btn-restart" class="flex-1 bg-cyan-600 hover:bg-cyan-500 border border-cyan-300 py-3 rounded font-bold text-white active:scale-95 transition">
+            🔄 REINICIAR
+          </button>
+          <button id="btn-shop-over" class="flex-1 bg-amber-600 hover:bg-amber-500 border border-amber-300 py-3 rounded font-bold text-white active:scale-95 transition">
+            🏛️ LOJA
+          </button>
+        </div>
+      </div>
+
+      <!-- Overlay da Loja de Runas -->
+      <div id="shop-menu" class="absolute inset-0 bg-slate-950/95 flex flex-col p-4 z-30 hidden overflow-y-auto">
+        <div class="flex justify-between items-center mb-4 border-b border-slate-800 pb-2">
+          <h2 class="font-cinzel text-xl sm:text-2xl text-amber-400 font-bold">🏛️ LOJA DE RUNAS NÓRDICAS</h2>
+          <button id="btn-close-shop" class="bg-slate-800 hover:bg-slate-700 px-3 py-1 rounded border border-slate-600 text-slate-300">
+            ✖ VOLTAR
+          </button>
+        </div>
+
+        <div class="flex items-center justify-between bg-slate-900 p-2 rounded mb-4 border border-slate-800">
+          <span class="text-slate-300">Seu Ouro:</span>
+          <span class="text-amber-400 font-bold text-base">🪙 <span id="shop-gold-display">0</span></span>
+        </div>
+
+        <!-- Lista de Upgrades -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
+          <!-- Upgrade 1: Dano da Lâmina -->
+          <div class="bg-slate-900 p-3 rounded border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-center text-cyan-300 mb-1">
+                <span class="font-bold">🗡️ Dano da Lâmina</span>
+                <span id="lvl-blade" class="text-[10px] text-slate-400">Nível 1</span>
+              </div>
+              <p class="text-[10px] text-slate-400 mb-2">Aumenta o dano de corte básico contra os Draugrs.</p>
+            </div>
+            <button id="buy-blade" class="w-full bg-slate-800 hover:bg-amber-600 border border-amber-500/50 py-2 rounded text-amber-300 text-xs font-bold transition">
+              Melhorar (🪙 <span id="cost-blade">50</span>)
+            </button>
+          </div>
+
+          <!-- Upgrade 2: Força do Grito -->
+          <div class="bg-slate-900 p-3 rounded border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-center text-cyan-300 mb-1">
+                <span class="font-bold">🗣️ Força do Grito</span>
+                <span id="lvl-shout" class="text-[10px] text-slate-400">Nível 1</span>
+              </div>
+              <p class="text-[10px] text-slate-400 mb-2">Aumenta o dano e o impacto de empurrão do FUS-RO-DAH.</p>
+            </div>
+            <button id="buy-shout" class="w-full bg-slate-800 hover:bg-amber-600 border border-amber-500/50 py-2 rounded text-amber-300 text-xs font-bold transition">
+              Melhorar (🪙 <span id="cost-shout">75</span>)
+            </button>
+          </div>
+
+          <!-- Upgrade 3: Recarga do Thu'um -->
+          <div class="bg-slate-900 p-3 rounded border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-center text-cyan-300 mb-1">
+                <span class="font-bold">⚡ Recarga do Thu'um</span>
+                <span id="lvl-regen" class="text-[10px] text-slate-400">Nível 1</span>
+              </div>
+              <p class="text-[10px] text-slate-400 mb-2">Regenera a barra de Grito mais rapidamente com ataques.</p>
+            </div>
+            <button id="buy-regen" class="w-full bg-slate-800 hover:bg-amber-600 border border-amber-500/50 py-2 rounded text-amber-300 text-xs font-bold transition">
+              Melhorar (🪙 <span id="cost-regen">60</span>)
+            </button>
+          </div>
+
+          <!-- Upgrade 4: Vida Máxima -->
+          <div class="bg-slate-900 p-3 rounded border border-slate-800 flex flex-col justify-between">
+            <div>
+              <div class="flex justify-between items-center text-cyan-300 mb-1">
+                <span class="font-bold">🛡️ Vitalidade Nórdica</span>
+                <span id="lvl-hp" class="text-[10px] text-slate-400">Nível 1</span>
+              </div>
+              <p class="text-[10px] text-slate-400 mb-2">Aumenta os pontos de vida máxima do Dragonborn.</p>
+            </div>
+            <button id="buy-hp" class="w-full bg-slate-800 hover:bg-amber-600 border border-amber-500/50 py-2 rounded text-amber-300 text-xs font-bold transition">
+              Melhorar (🪙 <span id="cost-hp">80</span>)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ====================================================================
+       CONTROLES MOBILE & BARRA DE HABILIDADES
+       ==================================================================== -->
+  <footer class="w-full max-w-4xl mx-auto p-2 sm:p-4 bg-slate-900/90 border-t-2 border-cyan-500/30">
+    <div class="grid grid-cols-3 gap-2 sm:gap-4 items-center">
+      <!-- Botão de Desaceleração (Tiid Klo Ul) -->
+      <button id="btn-slow" class="relative group bg-slate-800 border-2 border-cyan-400 rounded-lg p-2 sm:p-3 flex flex-col items-center justify-center active:scale-95 transition disabled:opacity-50">
+        <span class="text-lg sm:text-2xl">❄️</span>
+        <span class="text-[9px] sm:text-xs font-bold text-cyan-300 mt-1">TIID KLO UL</span>
+        <span class="text-[8px] text-slate-400 hidden sm:block">(Lentidão - [Q])</span>
+        <!-- Gauge de Cooldown -->
+        <div id="slow-cd-overlay" class="absolute inset-0 bg-slate-950/80 rounded-lg flex items-center justify-center font-bold text-cyan-400 text-xs hidden">
+          0s
+        </div>
+      </button>
+
+      <!-- Barra e Botão de Grito FUS-RO-DAH -->
+      <button id="btn-shout" class="relative group bg-gradient-to-r from-cyan-700 to-blue-600 border-2 border-cyan-300 rounded-lg p-2 sm:p-3 flex flex-col items-center justify-center active:scale-95 transition overflow-hidden shadow-[0_0_15px_rgba(0,240,255,0.3)] disabled:opacity-60">
+        <!-- Barra de Thu'um preenchendo o fundo -->
+        <div id="thuum-progress" class="absolute left-0 bottom-0 top-0 bg-cyan-400/30 w-0 transition-all duration-100"></div>
+        <span class="text-xl sm:text-3xl font-black font-cinzel text-white rune-glow z-10">FUS-RO-DAH!</span>
+        <span class="text-[9px] sm:text-xs text-cyan-200 z-10">Grito de Impacto [ENTER]</span>
+      </button>
+
+      <!-- Botão de Ataque Rápido / Toque -->
+      <button id="btn-attack" class="bg-red-800/80 border-2 border-red-400 rounded-lg p-2 sm:p-3 flex flex-col items-center justify-center active:scale-95 transition">
+        <span class="text-lg sm:text-2xl">⚔️</span>
+        <span class="text-[9px] sm:text-xs font-bold text-red-200 mt-1">ATACAR</span>
+        <span class="text-[8px] text-slate-400 hidden sm:block">(Golpe - [ESPAÇO])</span>
+      </button>
+    </div>
+  </footer>
+
+  <!-- ====================================================================
+       CÓDIGO JAVASCRIPT VANILLA DO JOGO
+       ==================================================================== -->
+  <script>
+    /* ==========================================================================
+       1. SINTETIZADOR DE ÁUDIO WEB (SEM DEPENDÊNCIAS DE ARQUIVOS EXTERNOS)
+       ========================================================================== */
+    class SoundFX {
+      constructor() {
+        this.ctx = null;
+      }
+
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          this.ctx = new AudioContext();
+        }
+        if (this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+
+      playSlash() {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(400, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(80, this.ctx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.12);
+      }
+
+      playHit() {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'square';
+        osc.frequency.setValueAtTime(150, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.15);
+        gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.15);
+      }
+
+      playShout() {
+        if (!this.ctx) return;
+        // Sub-grave profundo + Ruído branco estourado
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(120, now);
+        osc.frequency.exponentialRampToValueAtTime(20, now + 0.8);
+        gain.gain.setValueAtTime(1.0, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.8);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(now + 0.8);
+
+        // Burst de Ruído
+        const bufferSize = this.ctx.sampleRate * 0.5;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) {
+          data[i] = Math.random() * 2 - 1;
+        }
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const noiseGain = this.ctx.createGain();
+        noiseGain.gain.setValueAtTime(0.6, now);
+        noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+        noise.connect(noiseGain);
+        noiseGain.connect(this.ctx.destination);
+        noise.start();
+      }
+
+      playSlowTime() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, now);
+        osc.frequency.exponentialRampToValueAtTime(200, now + 0.6);
+        gain.gain.setValueAtTime(0.4, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.6);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(now + 0.6);
+      }
+
+      playCoin() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(987.77, now); // B5
+        osc.frequency.setValueAtTime(1318.51, now + 0.08); // E6
+        gain.gain.setValueAtTime(0.2, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(now + 0.25);
+      }
+
+      playGameOver() {
+        if (!this.ctx) return;
+        const now = this.ctx.currentTime;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(300, now);
+        osc.frequency.linearRampToValueAtTime(80, now + 1.0);
+        gain.gain.setValueAtTime(0.5, now);
+        gain.gain.linearRampToValueAtTime(0.01, now + 1.0);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(now + 1.0);
+      }
+    }
+
+    const sfx = new SoundFX();
+
+    /* ==========================================================================
+       2. PERSISTÊNCIA (LocalStorage) & ESTADO DO JOGO
+       ========================================================================== */
+    const STORAGE_KEY = 'fus_ro_dungeon_v1';
+
+    const defaultData = {
+      highScore: 0,
+      gold: 0,
+      upgrades: {
+        blade: 1,  // Dano
+        shout: 1,  // Empurrão e Dano do Grito
+        regen: 1,  // Recarga de Thu'um
+        hp: 1      // Vida Máxima
+      }
+    };
+
+    let savedData = JSON.parse(localStorage.getItem(STORAGE_KEY)) || defaultData;
+
+    function saveGame() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(savedData));
+    }
+
+    /* ==========================================================================
+       3. CONFIGURAÇÃO DO CANVAS & ENGINE DE JOGO
+       ========================================================================== */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Resolução virtual interna fixada em 16:9
+    const V_WIDTH = 960;
+    const V_HEIGHT = 540;
+    canvas.width = V_WIDTH;
+    canvas.height = V_HEIGHT;
+
+    // Pistas Verticais (Y)
+    const LANES = [130, 270, 410];
+
+    // Estado da Partida
+    let gameState = 'MENU'; // 'MENU', 'PLAYING', 'GAMEOVER'
+    let score = 0;
+    let goldSession = 0;
+    let playerHp = 100;
+    let maxPlayerHp = 100;
+    let currentLane = 1; // 0: Topo, 1: Meio, 2: Baixo
+
+    let thuumEnergy = 0; // 0 a 100
+    let slowTimeTimer = 0; // Se > 0, tempo desacelerado
+    let slowTimeCooldown = 0; // Tempo de recarga do Tiid Klo Ul
+
+    let shakeTimer = 0;
+    let shakeIntensity = 0;
+
+    let enemies = [];
+    let particles = [];
+    let projectiles = [];
+    let shockwaves = [];
+
+    let attackAnimTimer = 0;
+    let spawnTimer = 0;
+    let spawnInterval = 120; // frames entre inimigos
+
+    /* ==========================================================================
+       4. DEFINIÇÃO DE INIMIGOS E TIPOS
+       ========================================================================== */
+    const ENEMY_TYPES = {
+      FAST: { name: 'Draugr Rápido', hp: 25, speed: 2.8, color: '#38bdf8', size: 30, gold: 3, score: 50 },
+      WARRIOR: { name: 'Draugr Guerreiro', hp: 55, speed: 1.6, color: '#0284c7', size: 38, gold: 6, score: 100 },
+      COMMANDER: { name: 'Draugr Comandante', hp: 130, speed: 1.0, color: '#1e3a8a', size: 48, gold: 15, score: 250 },
+      ARCHER: { name: 'Esqueleto Arqueiro', hp: 35, speed: 1.2, color: '#cbd5e1', size: 32, gold: 8, score: 120, range: 680 }
+    };
+
+    class Enemy {
+      constructor(type, laneIndex) {
+        this.type = type;
+        this.lane = laneIndex;
+        this.x = V_WIDTH + 40;
+        this.y = LANES[laneIndex];
+        this.hp = type.hp;
+        this.maxHp = type.hp;
+        this.speed = type.speed;
+        this.vx = 0;
+        this.shootTimer = 0;
+        this.hitFlash = 0;
+      }
+
+      update(dtFactor) {
+        if (this.hitFlash > 0) this.hitFlash--;
+
+        // Movimento normal ou sob desaceleração
+        let effSpeed = this.speed * dtFactor;
+
+        if (this.type === ENEMY_TYPES.ARCHER && this.x <= ENEMY_TYPES.ARCHER.range) {
+          // Arqueiro para e dispara
+          this.shootTimer += dtFactor;
+          if (this.shootTimer >= 100) {
+            this.shootTimer = 0;
+            // Dispara flecha
+            projectiles.push({
+              x: this.x - 20,
+              y: this.y,
+              vx: -6 * dtFactor,
+              lane: this.lane
+            });
+            sfx.playSlash();
+          }
+        } else {
+          this.x -= effSpeed;
+        }
+
+        // Aplica velocidade de empurrão (Grito FUS-RO-DAH)
+        if (this.vx > 0) {
+          this.x += this.vx * dtFactor;
+          this.vx *= 0.88; // Desaceleração por atrito
+          if (this.vx < 0.2) this.vx = 0;
+        }
+      }
+
+      draw() {
+        ctx.save();
+        ctx.translate(this.x, this.y);
+
+        // Flash de Dano
+        if (this.hitFlash > 0) {
+          ctx.fillStyle = '#ffffff';
+        } else {
+          ctx.fillStyle = this.type.color;
+        }
+
+        // Corpo do Inimigo (Estilo Pixel Retro)
+        let sz = this.type.size;
+        ctx.fillRect(-sz / 2, -sz / 2, sz, sz);
+
+        // Olhos Brilhantes (Azul Rúnico)
+        ctx.fillStyle = '#00f0ff';
+        ctx.shadowColor = '#00f0ff';
+        ctx.shadowBlur = 8;
+        ctx.fillRect(-sz / 4, -sz / 4, 6, 6);
+
+        // Barra de Vida acima do inimigo
+        if (this.hp < this.maxHp) {
+          ctx.shadowBlur = 0;
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(-sz / 2, -sz / 2 - 12, sz, 5);
+          ctx.fillStyle = '#ef4444';
+          ctx.fillRect(-sz / 2, -sz / 2 - 12, (sz * (this.hp / this.maxHp)), 5);
+        }
+
+        ctx.restore();
+      }
+    }
+
+    /* ==========================================================================
+       5. SISTEMA DE PARTÍCULAS E EFETOS VISUAIS
+       ========================================================================== */
+    function spawnSparks(x, y, color = '#00f0ff', count = 8) {
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x: x,
+          y: y,
+          vx: (Math.random() - 0.5) * 8,
+          vy: (Math.random() - 0.5) * 8,
+          size: Math.random() * 4 + 2,
+          color: color,
+          alpha: 1.0,
+          life: 20
+        });
+      }
+    }
+
+    function triggerScreenShake(intensity = 15, duration = 20) {
+      shakeIntensity = intensity;
+      shakeTimer = duration;
+    }
+
+    /* ==========================================================================
+       6. LÓGICA DE COMBATE E HABILIDADES
+       ========================================================================== */
+    function performBasicAttack() {
+      if (gameState !== 'PLAYING') return;
+
+      sfx.playSlash();
+      attackAnimTimer = 10; // Animação de corte da espada
+
+      // Cálculo de Dano com Upgrade
+      const damage = 20 + (savedData.upgrades.blade - 1) * 8;
+      const rangeX = 180; // Alcance do ataque à frente do jogador
+
+      let hitAny = false;
+
+      enemies.forEach(e => {
+        if (e.lane === currentLane && e.x >= 80 && e.x <= 80 + rangeX) {
+          e.hp -= damage;
+          e.hitFlash = 5;
+          e.vx = 4; // Leve recuo
+          spawnSparks(e.x, e.y, '#ef4444', 6);
+          hitAny = true;
+
+          if (e.hp <= 0) {
+            score += e.type.score;
+            goldSession += e.type.gold;
+            sfx.playCoin();
+          } else {
+            sfx.playHit();
+          }
+        }
+      });
+
+      // Recarrega barra de Thu'um
+      const regenRate = 8 + (savedData.upgrades.regen - 1) * 3;
+      thuumEnergy = Math.min(100, thuumEnergy + (hitAny ? regenRate : regenRate * 0.4));
+      updateUI();
+    }
+
+    function performShout() {
+      if (gameState !== 'PLAYING' || thuumEnergy < 100) return;
+
+      thuumEnergy = 0;
+      sfx.playShout();
+      triggerScreenShake(25, 30);
+
+      // Onda de Choque Visual
+      shockwaves.push({
+        x: 100,
+        radius: 10,
+        maxRadius: V_WIDTH,
+        alpha: 1.0
+      });
+
+      // Impacto e Empurrão em TODAS as pistas
+      const shoutForce = 22 + (savedData.upgrades.shout - 1) * 6;
+      const shoutDamage = 45 + (savedData.upgrades.shout - 1) * 15;
+
+      enemies.forEach((e, idx) => {
+        e.hp -= shoutDamage;
+        e.vx = shoutForce; // Grande arremesso para a direita
+        e.hitFlash = 10;
+        spawnSparks(e.x, e.y, '#00f0ff', 12);
+
+        // Se o empurrão arremessar o inimigo contra a parede do fundo, sofre dano extra por esmagamento
+        if (e.x + shoutForce >= V_WIDTH - 20) {
+          e.hp -= 30; // Dano de esmagamento contra a pedra
+          spawnSparks(V_WIDTH - 20, e.y, '#ffffff', 15);
+        }
+
+        if (e.hp <= 0) {
+          score += e.type.score;
+          goldSession += e.type.gold;
+        }
+      });
+
+      updateUI();
+    }
+
+    function performSlowTime() {
+      if (gameState !== 'PLAYING' || slowTimeCooldown > 0) return;
+
+      sfx.playSlowTime();
+      slowTimeTimer = 240; // 4 segundos a 60 FPS
+      slowTimeCooldown = 900; // 15 segundos de cooldown
+      updateUI();
+    }
+
+    /* ==========================================================================
+       7. LOOP PRINCIPAL E ATUALIZAÇÃO DO CANVAS
+       ========================================================================== */
+    function updateGame() {
+      if (gameState !== 'PLAYING') return;
+
+      // Fator de desaceleração (Tiid Klo Ul)
+      const dtFactor = slowTimeTimer > 0 ? 0.35 : 1.0;
+
+      if (slowTimeTimer > 0) slowTimeTimer--;
+      if (slowTimeCooldown > 0) slowTimeCooldown--;
+
+      // Animação de ataque do jogador
+      if (attackAnimTimer > 0) attackAnimTimer--;
+
+      // Gerador de Inimigos
+      spawnTimer += dtFactor;
+      if (spawnTimer >= spawnInterval) {
+        spawnTimer = 0;
+        spawnInterval = Math.max(40, 120 - Math.floor(score / 500) * 8);
+
+        // Seleção ponderada de inimigo baseada no progresso
+        let lane = Math.floor(Math.random() * 3);
+        let rand = Math.random();
+        let type = ENEMY_TYPES.FAST;
+
+        if (rand > 0.8 && score > 800) type = ENEMY_TYPES.COMMANDER;
+        else if (rand > 0.5 && score > 400) type = ENEMY_TYPES.ARCHER;
+        else if (rand > 0.3) type = ENEMY_TYPES.WARRIOR;
+
+        enemies.push(new Enemy(type, lane));
+      }
+
+      // Atualiza Inimigos e Colisão
+      for (let i = enemies.length - 1; i >= 0; i--) {
+        let e = enemies[i];
+        e.update(dtFactor);
+
+        // Inimigo atinge a posição do jogador (Invasão do Portão)
+        if (e.x <= 100) {
+          playerHp -= (e.type === ENEMY_TYPES.COMMANDER ? 25 : 12);
+          sfx.playHit();
+          triggerScreenShake(10, 12);
+          enemies.splice(i, 1);
+
+          if (playerHp <= 0) {
+            playerHp = 0;
+            gameOver();
+          }
+          updateUI();
+          continue;
+        }
+
+        // Remoção se MORTO
+        if (e.hp <= 0) {
+          spawnSparks(e.x, e.y, '#fbbf24', 10);
+          enemies.splice(i, 1);
+          updateUI();
+        }
+      }
+
+      // Atualiza Projéteis (Flechas)
+      for (let i = projectiles.length - 1; i >= 0; i--) {
+        let p = projectiles[i];
+        p.x += p.vx;
+
+        // Acertou o jogador
+        if (p.x <= 100 && p.lane === currentLane) {
+          playerHp -= 10;
+          sfx.playHit();
+          triggerScreenShake(6, 8);
+          projectiles.splice(i, 1);
+
+          if (playerHp <= 0) gameOver();
+          updateUI();
+        } else if (p.x < 0) {
+          projectiles.splice(i, 1);
+        }
+      }
+
+      // Atualiza Partículas
+      for (let i = particles.length - 1; i >= 0; i--) {
+        let pt = particles[i];
+        pt.x += pt.vx;
+        pt.y += pt.vy;
+        pt.alpha -= 0.05;
+        if (pt.alpha <= 0) particles.splice(i, 1);
+      }
+
+      // Atualiza Ondas de Choque
+      for (let i = shockwaves.length - 1; i >= 0; i--) {
+        let sw = shockwaves[i];
+        sw.radius += 25;
+        sw.alpha -= 0.03;
+        if (sw.alpha <= 0) shockwaves.splice(i, 1);
+      }
+    }
+
+    function renderGame() {
+      ctx.save();
+
+      // Aplica Tremor de Tela (Screen Shake)
+      if (shakeTimer > 0) {
+        shakeTimer--;
+        let dx = (Math.random() - 0.5) * shakeIntensity;
+        let dy = (Math.random() - 0.5) * shakeIntensity;
+        ctx.translate(dx, dy);
+      }
+
+      // Fundo: Pedra Escura de Catacumba
+      ctx.fillStyle = '#090d16';
+      ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
+
+      // Renderiza as 3 Pistas / Paredes Rúnicas
+      for (let i = 0; i < 3; i++) {
+        let y = LANES[i];
+
+        // Destaque da pista atual selecionada
+        if (i === currentLane) {
+          ctx.fillStyle = 'rgba(0, 240, 255, 0.06)';
+          ctx.fillRect(0, y - 40, V_WIDTH, 80);
+        }
+
+        // Linha de chão de pedra com runas
+        ctx.strokeStyle = i === currentLane ? '#00f0ff' : '#1e293b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, y + 40);
+        ctx.lineTo(V_WIDTH, y + 40);
+        ctx.stroke();
+
+        // Archote / Fogueira no fundo de cada pista
+        ctx.fillStyle = '#f59e0b';
+        ctx.shadowColor = '#f59e0b';
+        ctx.shadowBlur = 10;
+        ctx.fillRect(20, y - 10, 8, 12);
+        ctx.shadowBlur = 0;
+      }
+
+      // Linha Limite de Defesa do Portão
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(100, 0);
+      ctx.lineTo(100, V_HEIGHT);
+      ctx.stroke();
+
+      // Renderiza o Jogador (Dragonborn Retrô)
+      let py = LANES[currentLane];
+      ctx.save();
+      ctx.translate(100, py);
+
+      // Capa de Pele Nórdica
+      ctx.fillStyle = '#334155';
+      ctx.fillRect(-22, -20, 15, 35);
+
+      // Corpo / Armadura
+      ctx.fillStyle = '#64748b';
+      ctx.fillRect(-15, -22, 30, 44);
+
+      // Capacete com Chifres Icônico
+      ctx.fillStyle = '#94a3b8';
+      ctx.fillRect(-12, -32, 24, 14);
+      // Chifres
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillRect(-18, -36, 6, 10);
+      ctx.fillRect(12, -36, 6, 10);
+
+      // Olho Brilhante Rúnico
+      ctx.fillStyle = '#00f0ff';
+      ctx.shadowColor = '#00f0ff';
+      ctx.shadowBlur = 6;
+      ctx.fillRect(2, -26, 6, 4);
+      ctx.shadowBlur = 0;
+
+      // Animação de Espada / Ataque
+      if (attackAnimTimer > 0) {
+        ctx.strokeStyle = '#00f0ff';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.arc(10, 0, 50, -Math.PI / 3, Math.PI / 3);
+        ctx.stroke();
+      } else {
+        // Espada na bainha
+        ctx.fillStyle = '#cbd5e1';
+        ctx.fillRect(15, -10, 25, 6);
+      }
+      ctx.restore();
+
+      // Renderiza Inimigos
+      enemies.forEach(e => e.draw());
+
+      // Renderiza Projéteis
+      ctx.fillStyle = '#f8fafc';
+      projectiles.forEach(p => {
+        ctx.fillRect(p.x, p.y - 2, 14, 4);
+      });
+
+      // Renderiza Partículas
+      particles.forEach(pt => {
+        ctx.fillStyle = pt.color;
+        ctx.globalAlpha = pt.alpha;
+        ctx.fillRect(pt.x, pt.y, pt.size, pt.size);
+      });
+      ctx.globalAlpha = 1.0;
+
+      // Renderiza Ondas de Choque (FUS-RO-DAH)
+      shockwaves.forEach(sw => {
+        ctx.strokeStyle = `rgba(0, 240, 255, ${sw.alpha})`;
+        ctx.lineWidth = 12;
+        ctx.beginPath();
+        ctx.arc(sw.x, LANES[currentLane], sw.radius, -Math.PI / 2, Math.PI / 2);
+        ctx.stroke();
+      });
+
+      // Efeito congelante de tela durante Tiid Klo Ul (Lentidão)
+      if (slowTimeTimer > 0) {
+        ctx.fillStyle = 'rgba(165, 243, 252, 0.12)';
+        ctx.fillRect(0, 0, V_WIDTH, V_HEIGHT);
+      }
+
+      ctx.restore();
+    }
+
+    function gameLoop() {
+      updateGame();
+      renderGame();
+      requestAnimationFrame(gameLoop);
+    }
+
+    /* ==========================================================================
+       8. CONTROLES, EVENTOS E INTERFACE (UI)
+       ========================================================================== */
+    function updateUI() {
+      // HP Bar
+      const hpPct = Math.max(0, (playerHp / maxPlayerHp) * 100);
+      document.getElementById('hp-bar').style.width = `${hpPct}%`;
+      document.getElementById('hp-text').innerText = `${Math.ceil(playerHp)}/${maxPlayerHp}`;
+
+      // Placar e Ouro
+      document.getElementById('score-display').innerText = score;
+      document.getElementById('gold-display').innerText = savedData.gold + goldSession;
+
+      // Barra de Thu'um (FUS-RO-DAH)
+      const thuumBar = document.getElementById('thuum-progress');
+      const btnShout = document.getElementById('btn-shout');
+      thuumBar.style.width = `${thuumEnergy}%`;
+
+      if (thuumEnergy >= 100) {
+        btnShout.disabled = false;
+        btnShout.classList.add('animate-pulse', 'border-amber-400');
+      } else {
+        btnShout.disabled = true;
+        btnShout.classList.remove('animate-pulse', 'border-amber-400');
+      }
+
+      // Cooldown de Tiid Klo Ul (Lentidão)
+      const btnSlow = document.getElementById('btn-slow');
+      const cdOverlay = document.getElementById('slow-cd-overlay');
+
+      if (slowTimeCooldown > 0) {
+        btnSlow.disabled = true;
+        cdOverlay.classList.remove('hidden');
+        cdOverlay.innerText = `${Math.ceil(slowTimeCooldown / 60)}s`;
+      } else {
+        btnSlow.disabled = false;
+        cdOverlay.classList.add('hidden');
+      }
+
+      // Tela da Loja
+      document.getElementById('shop-gold-display').innerText = savedData.gold;
+      document.getElementById('high-score-display').innerText = savedData.highScore;
+
+      // Atualiza Custos e Níveis da Loja
+      const up = savedData.upgrades;
+      document.getElementById('lvl-blade').innerText = `Nível ${up.blade}`;
+      document.getElementById('cost-blade').innerText = up.blade * 50;
+
+      document.getElementById('lvl-shout').innerText = `Nível ${up.shout}`;
+      document.getElementById('cost-shout').innerText = up.shout * 75;
+
+      document.getElementById('lvl-regen').innerText = `Nível ${up.regen}`;
+      document.getElementById('cost-regen').innerText = up.regen * 60;
+
+      document.getElementById('lvl-hp').innerText = `Nível ${up.hp}`;
+      document.getElementById('cost-hp').innerText = up.hp * 80;
+    }
+
+    function startGame() {
+      sfx.init();
+      gameState = 'PLAYING';
+      score = 0;
+      goldSession = 0;
+      thuumEnergy = 0;
+      slowTimeTimer = 0;
+      slowTimeCooldown = 0;
+      enemies = [];
+      particles = [];
+      projectiles = [];
+      shockwaves = [];
+
+      maxPlayerHp = 100 + (savedData.upgrades.hp - 1) * 25;
+      playerHp = maxPlayerHp;
+
+      document.getElementById('main-menu').classList.add('hidden');
+      document.getElementById('game-over-menu').classList.add('hidden');
+      document.getElementById('shop-menu').classList.add('hidden');
+      updateUI();
+    }
+
+    function gameOver() {
+      gameState = 'GAMEOVER';
+      sfx.playGameOver();
+
+      savedData.gold += goldSession;
+      if (score > savedData.highScore) {
+        savedData.highScore = score;
+      }
+      saveGame();
+
+      document.getElementById('final-score').innerText = score;
+      document.getElementById('final-gold').innerText = `+${goldSession}`;
+      document.getElementById('game-over-menu').classList.remove('hidden');
+      updateUI();
+    }
+
+    /* ==========================================================================
+       9. MANIPULADORES DE EVENTOS (TECLADO & MOUSE/TOUCH)
+       ========================================================================== */
+    window.addEventListener('keydown', (e) => {
+      sfx.init();
+      if (gameState !== 'PLAYING') return;
+
+      switch (e.code) {
+        case 'ArrowUp':
+        case 'KeyW':
+          currentLane = Math.max(0, currentLane - 1);
+          break;
+        case 'ArrowDown':
+        case 'KeyS':
+          currentLane = Math.min(2, currentLane + 1);
+          break;
+        case 'Space':
+        case 'KeyK':
+          performBasicAttack();
+          break;
+        case 'Enter':
+        case 'KeyE':
+        case 'KeyJ':
+          performShout();
+          break;
+        case 'KeyQ':
+        case 'ShiftLeft':
+          performSlowTime();
+          break;
+      }
+    });
+
+    // Clique direto nas 3 pistas do Canvas (Mobile-first)
+    canvas.addEventListener('pointerdown', (e) => {
+      sfx.init();
+      if (gameState !== 'PLAYING') return;
+
+      const rect = canvas.getBoundingClientRect();
+      const clickY = ((e.clientY - rect.top) / rect.height) * V_HEIGHT;
+
+      if (clickY < V_HEIGHT / 3) {
+        currentLane = 0;
+      } else if (clickY < (V_HEIGHT * 2) / 3) {
+        currentLane = 1;
+      } else {
+        currentLane = 2;
+      }
+
+      performBasicAttack();
+    });
+
+    // Botões da Interface
+    document.getElementById('btn-start').addEventListener('click', startGame);
+    document.getElementById('btn-restart').addEventListener('click', startGame);
+    document.getElementById('btn-attack').addEventListener('click', performBasicAttack);
+    document.getElementById('btn-shout').addEventListener('click', performShout);
+    document.getElementById('btn-slow').addEventListener('click', performSlowTime);
+
+    // Navegação na Loja
+    document.getElementById('btn-shop').addEventListener('click', () => {
+      document.getElementById('shop-menu').classList.remove('hidden');
+      updateUI();
+    });
+    document.getElementById('btn-shop-over').addEventListener('click', () => {
+      document.getElementById('shop-menu').classList.remove('hidden');
+      updateUI();
+    });
+    document.getElementById('btn-close-shop').addEventListener('click', () => {
+      document.getElementById('shop-menu').classList.add('hidden');
+    });
+
+    // Compras de Upgrades na Loja
+    function buyUpgrade(type, costMultiplier) {
+      const up = savedData.upgrades;
+      const cost = up[type] * costMultiplier;
+
+      if (savedData.gold >= cost) {
+        savedData.gold -= cost;
+        up[type]++;
+        saveGame();
+        updateUI();
+        sfx.playCoin();
+      }
+    }
+
+    document.getElementById('buy-blade').addEventListener('click', () => buyUpgrade('blade', 50));
+    document.getElementById('buy-shout').addEventListener('click', () => buyUpgrade('shout', 75));
+    document.getElementById('buy-regen').addEventListener('click', () => buyUpgrade('regen', 60));
+    document.getElementById('buy-hp').addEventListener('click', () => buyUpgrade('hp', 80));
+
+    // Inicialização da Engine
+    updateUI();
+    requestAnimationFrame(gameLoop);
+  </script>
+</body>
+</html>
